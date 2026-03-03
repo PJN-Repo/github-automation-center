@@ -16,13 +16,22 @@ async function run() {
 
   // 1. Extract Jira Keys
   const jiraRegex = /([A-Z]+-\d+)/g;
+
+  // Clean the body to remove the automated Jira block so we don't re-scan our own table
+  let cleanBody = PR_BODY;
+  if (PR_BODY.includes(JIRA_MARKER_START) && PR_BODY.includes(JIRA_MARKER_END)) {
+     const removeRegex = new RegExp(`${JIRA_MARKER_START}[\\s\\S]*?${JIRA_MARKER_END}`, 'g');
+     cleanBody = PR_BODY.replace(removeRegex, '');
+  }
+
   const keys = new Set([
     ...(PR_TITLE.match(jiraRegex) || []),
-    ...(BRANCH_NAME.match(jiraRegex) || [])
+    ...(BRANCH_NAME.match(jiraRegex) || []),
+    ...(cleanBody.match(jiraRegex) || [])
   ]);
 
   if (keys.size === 0) {
-    console.error("❌ No Jira ticket key found in title or branch name.");
+    console.error("❌ No Jira ticket key found in title, branch name, or description.");
     process.exit(1);
   }
 
@@ -35,7 +44,7 @@ async function run() {
 
   // 3. Fetch Jira Titles (Strict Mode)
   // Initialize Markdown Table Header
-  let jiraList = "> | Ticket | Type | Status | Summary |\n> |:---:|:---:|:---:|:---|\n";
+  let jiraList = "> | Ticket | Type | Summary |\n> |:---:|:---:|:---|\n";
   let validTicketCount = 0; 
   
   const authHeader = `Basic ${Buffer.from(`${JIRA_USER}:${JIRA_TOKEN}`).toString('base64')}`;
@@ -54,7 +63,7 @@ async function run() {
         const type = f.issuetype ? f.issuetype.name : "Task";
         const summary = (f.summary || "No Summary").replace(/\|/g, '-'); // Escape pipes for table
 
-        jiraList += `> | [${key}](https://${JIRA_DOMAIN}/browse/${key}) | ${type} | ${status} | ${summary} |\n`;
+        jiraList += `> | [${key}](https://${JIRA_DOMAIN}/browse/${key}) | ${type} | ${summary} |\n`;
         console.log(`✅ Validated real Jira ticket: ${key}`);
         validTicketCount++;
       } else {
