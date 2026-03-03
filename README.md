@@ -57,9 +57,29 @@ This centralized repository acts as the "Control Tower". It must contain the fol
 * **`validate-pr.js`** (Root directory): The Node.js script that parses the PR title/branch, connects to the Jira API for validation, enforces strict failure logic if the ticket is fake, and updates the PR description.
 * **`.github/workflows/global-pr-standards.yml`**: The GitHub Actions workflow file that orchestrates the token generation, triggers the validation script on the `opened` and `edited` PR events, and handles the Slack webhook if a non-compliant PR is merged.
 
+
+---
+### 5. Repository Usage (Required for Alerts)
+Since global Rulesets cannot trigger workflows on merge (closed event), you must add this caller workflow to every repository you want to monitor.
+
+Create `.github/workflows/global-standards.yml` in each repo:
+
+```yaml
+name: Global Standards & Alerts
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, closed]
+
+jobs:
+  call-central-workflow:
+    uses: PJN-Repo/github-automation-center/.github/workflows/global-pr-standards.yml@main
+    secrets: inherit 
+```
+
 ---
 
-## 5. Global Activation Instructions
+## 6. Global Activation Instructions
 To deploy this workflow to all repositories:
 
 1. Navigate to **Organization Settings > Repository > Rulesets**.

@@ -65,7 +65,12 @@ async function run() {
     process.exit(1); 
   }
 
-  // 4. Update PR Description
+  // 4. Update PR Description (Optional)
+  if (process.env.SKIP_UPDATE === 'true') {
+    console.log("ℹ️ Skipping PR description update as per configuration.");
+    return;
+  }
+
   const infoBlock = `${JIRA_MARKER_START}\n### 🎫 Related Jira Tickets\n${jiraList}${JIRA_MARKER_END}`;
   let newBody = "";
 
