@@ -37,8 +37,11 @@ Because this workflow automatically updates PR descriptions with Jira links, the
 
 ---
 
-## 3. Organization Secrets
+## 3. Organization Secrets/Variables
 Configure the following secrets in **Organization Settings > Secrets and variables > Actions**:
+
+
+### Secrets
 
 | Secret Name | Description |
 | :--- | :--- |
@@ -47,6 +50,12 @@ Configure the following secrets in **Organization Settings > Secrets and variabl
 | `JIRA_API_TOKEN` | A Jira API token with read access to issues. |
 | `JIRA_USER_EMAIL` | The email address associated with the Jira API token (Required for Jira Cloud). |
 | `SLACK_WEBHOOK_URL` | An Incoming Webhook URL for the target Slack channel. |
+
+### Variable
+
+| Secret Name | Description |
+| :--- | :--- |
+| `NOTIFY_FAIL_STANDARD_ON_SLACK` | Enable send message on slack if PR merged with standars is faling. to send the `SLACK_WEBHOOK_URL` must be setted correctly |
 
 ---
 
