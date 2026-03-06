@@ -44,7 +44,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           JIRA_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           JIRA_USER:  ${{ secrets.JIRA_USER_EMAIL }}
-          JIRA_DOMAIN: "payjustnow-team.atlassian.net"
+          JIRA_DOMAIN: ${{ env.JIRA_DOMAIN }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
           PR_BODY_INPUT: ${{ github.event.pull_request.body }}
@@ -67,9 +67,6 @@ jobs:
             DESC="✅ Standards Met"
           fi
           
-          # Create a SEPARATE commit status check.
-          # The main workflow stays Green (allowing merge).
-          # This new check becomes Red (visual warning).
           gh api \
             --method POST \
             -H "Accept: application/vnd.github+json" \
@@ -114,7 +111,7 @@ jobs:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           JIRA_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           JIRA_USER:  ${{ secrets.JIRA_USER_EMAIL }}
-          JIRA_DOMAIN: "payjustnow-team.atlassian.net"
+          JIRA_DOMAIN: ${{ env.JIRA_DOMAIN }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
           PR_BODY_INPUT: ${{ github.event.pull_request.body }}
@@ -127,5 +124,5 @@ jobs:
         if: steps.final-check.outcome == 'failure' && vars.NOTIFY_FAIL_STANDARD_ON_SLACK == 'true'
         run: |
           curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"🚨 *Standards Violation Alert*\nPR <${{ github.event.pull_request.html_url }}|#${{ github.event.pull_request.number }}> in `${{ github.repository }}` was merged into `main` by *${{ github.actor }}* without a Jira ticket!"}' \
+          --data '{"text":"🚨 *Standards Violation Alert*\nPR <${{ github.event.pull_request.html_url }}|#${{ github.event.pull_request.number }}> in `${{ github.repository }}` was merged into `sandbox` by *${{ github.actor }}* without a Jira ticket!"}' \
           ${{ secrets.SLACK_WEBHOOK_URL }}
