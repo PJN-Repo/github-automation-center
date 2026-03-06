@@ -124,7 +124,7 @@ jobs:
         run: node automation-config/validate-pr.js
           
       - name: Notify Slack
-        if: steps.final-check.outcome == 'failure'
+        if: steps.final-check.outcome == 'failure' && vars.NOTIFY_FAIL_STANDARD_ON_SLACK == 'true'
         run: |
           curl -X POST -H 'Content-type: application/json' \
           --data '{"text":"🚨 *Standards Violation Alert*\nPR <${{ github.event.pull_request.html_url }}|#${{ github.event.pull_request.number }}> in `${{ github.repository }}` was merged into `main` by *${{ github.actor }}* without a Jira ticket!"}' \
