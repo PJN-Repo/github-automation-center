@@ -14,8 +14,8 @@ const JIRA_MARKER_END = "<!-- JIRA-INFO-END -->";
 async function run() {
   console.log(`Checking PR #${PR_NUMBER} in ${REPO_FULL_NAME}...`);
 
-  // 1. Extract Jira Keys
-  const jiraRegex = /([A-Z]+-\d+)/g;
+  // 1. Extract Jira Keys (Case Insensitive)
+  const jiraRegex = /([a-zA-Z]+-\d+)/g;
 
   // Clean the body to remove the automated Jira block so we don't re-scan our own table
   let cleanBody = PR_BODY;
@@ -24,16 +24,13 @@ async function run() {
      cleanBody = PR_BODY.replace(removeRegex, '');
   }
 
-  const keys = new Set([
+  const rawKeys = [
     ...(PR_TITLE.match(jiraRegex) || []),
     ...(BRANCH_NAME.match(jiraRegex) || []),
     ...(cleanBody.match(jiraRegex) || [])
-  ]);
-
-  if (keys.size === 0) {
-    console.error("❌ No Jira ticket key found in title, branch name, or description.");
-    process.exit(1);
-  }
+  ];
+  
+  const keys = new Set(rawKeys.map(k => k.toUpperCase()));
 
   // 2. Validate Description Length (10 chars rule)
   const cleanTitle = PR_TITLE.replace(jiraRegex, '').replace(/[\[\]\(\)]/g, '').trim();
@@ -43,8 +40,8 @@ async function run() {
   }
 
   // 3. Fetch Jira Titles (Strict Mode)
-  // Initialize Markdown Table Header
-  let jiraList = "> | Ticket | Type | Status | Summary |\n> |:---:|:---:|:---:|:---|\n";
+  // Initialize Markdown Table Header (Modern "Callout" Style as requested)
+  let jiraList = "> | Ticket | Type | Summary |\n> |:---:|:---:|:---|\n";
   let validTicketCount = 0; 
   
   const authHeader = `Basic ${Buffer.from(`${JIRA_USER}:${JIRA_TOKEN}`).toString('base64')}`;
@@ -59,11 +56,10 @@ async function run() {
       if (res.ok) {
         const data = await res.json();
         const f = data.fields;
-        const status = f.status ? f.status.name.toUpperCase() : "UNKNOWN";
         const type = f.issuetype ? f.issuetype.name : "Task";
         const summary = (f.summary || "No Summary").replace(/\|/g, '-'); // Escape pipes for table
 
-        jiraList += `> | [${key}](https://${JIRA_DOMAIN}/browse/${key}) | ${type} | ${status} | ${summary} |\n`;
+        jiraList += `> | [${key}](https://${JIRA_DOMAIN}/browse/${key}) | ${type} | ${summary} |\n`;
         console.log(`✅ Validated real Jira ticket: ${key}`);
         validTicketCount++;
       } else {
@@ -74,45 +70,53 @@ async function run() {
     }
   }
 
-  // If we checked all the keys and NONE of them were real, fail the CI.
-  if (validTicketCount === 0) {
-    console.error("❌ STRICT FAILURE: Could not validate ANY of the provided Jira tickets. Ensure the ticket actually exists!");
-    process.exit(1); 
-  }
+  // 4. Update PR Description
+  let newBody = PR_BODY;
+  const hasExistingBlock = PR_BODY.includes(JIRA_MARKER_START);
+  const shouldUpdate = process.env.SKIP_UPDATE !== 'true';
 
-  // 4. Update PR Description (Optional)
-  if (process.env.SKIP_UPDATE === 'true') {
-    console.log("ℹ️ Skipping PR description update as per configuration.");
-    return;
-  }
-
-  const infoBlock = `${JIRA_MARKER_START}\n>[!NOTE]\n>### 🎫 Related Jira Tickets\n${jiraList}${JIRA_MARKER_END}`;
-  let newBody = "";
-
-  if (PR_BODY.includes(JIRA_MARKER_START)) {
-    // Replace existing block
-    const replaceRegex = new RegExp(`${JIRA_MARKER_START}[\\s\\S]*?${JIRA_MARKER_END}`);
-    newBody = PR_BODY.replace(replaceRegex, infoBlock);
-  } else {
-    // Append block at the top, preserving original description
-    newBody = `${infoBlock}\n\n${PR_BODY}`;
-  }
-
-  if (newBody !== PR_BODY) {
-    console.log("Updating PR description with verified Jira details...");
-    const patchRes = await fetch(`https://api.github.com/repos/${REPO_FULL_NAME}/pulls/${PR_NUMBER}`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ body: newBody })
-    });
-    
-    if (!patchRes.ok) {
-      console.error(`⚠️ Failed to update PR description: HTTP ${patchRes.status}`);
+  if (shouldUpdate) {
+    if (validTicketCount > 0) {
+        const infoBlock = `${JIRA_MARKER_START}\n>[!NOTE]\n>### 🎫 Related Jira Tickets\n${jiraList}${JIRA_MARKER_END}`;
+        
+        if (hasExistingBlock) {
+           const replaceRegex = new RegExp(`${JIRA_MARKER_START}[\\s\\S]*?${JIRA_MARKER_END}`);
+           newBody = PR_BODY.replace(replaceRegex, infoBlock);
+        } else {
+           newBody = `${infoBlock}\n\n${PR_BODY}`;
+        }
+    } else if (hasExistingBlock) {
+        console.log("ℹ️ No valid tickets found. Removing existing Jira block from description.");
+        const replaceRegex = new RegExp(`${JIRA_MARKER_START}[\\s\\S]*?${JIRA_MARKER_END}`);
+        newBody = PR_BODY.replace(replaceRegex, ''); // Replaces with empty string
     }
+
+    if (newBody !== PR_BODY) {
+      console.log("Updating PR description...");
+      const patchRes = await fetch(`https://api.github.com/repos/${REPO_FULL_NAME}/pulls/${PR_NUMBER}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${GITHUB_TOKEN}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ body: newBody })
+      });
+      
+      if (!patchRes.ok) {
+        console.error(`⚠️ Failed to update PR description: HTTP ${patchRes.status}`);
+      }
+    }
+  }
+  
+  // 5. Final Failure Check
+  if (validTicketCount === 0) {
+    if (keys.size === 0) {
+       console.error("❌ No Jira ticket key found in title, branch name, or description.");
+    } else {
+       console.error("❌ STRICT FAILURE: Could not validate ANY of the provided Jira tickets. Ensure the ticket actually exists!");
+    }
+    process.exit(1); 
   }
   
   console.log("✅ All PR standards met successfully!");
